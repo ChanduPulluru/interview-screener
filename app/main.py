@@ -9,46 +9,50 @@ load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-app = FastAPI(title="Mini AI Interview Screener", version="0.1.0")
+app = FastAPI(title="Mini AI Interview Screener", version="1.0")
 
 
-# REQUEST MODELS
+# ===== MODELS =====
 class AnswerRequest(BaseModel):
     text: str
+
 
 class RankRequest(BaseModel):
     answers: list[str]
 
 
-# HELPER
+# ===== HELPER FUNCTION =====
 async def evaluate_text(text: str):
-    try:
-        prompt = f"""
-You are an interview evaluator. Analyze the candidate's answer.
+    prompt = f"""
+You are an interview evaluator. Analyze the candidate’s answer.
 
 Answer: {text}
 
-Return a JSON object ONLY with:
-- score (1-5)
-- summary
-- improvement
-        """
+Return ONLY a valid JSON object:
+{{
+  "score": 1-5,
+  "summary": "one line summary",
+  "improvement": "one improvement advice"
+}}
+Make sure the response is STRICT JSON.
+"""
 
+    try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",   # ✅ VALID GROQ MODEL
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
+            temperature=0.2
         )
 
-        content = response.choices[0].message.content
-
-        return json.loads(content)
+        raw = response.choices[0].message.content
+        return json.loads(raw)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM error: {e}")
 
 
-# ROUTES
+# ===== ROUTES =====
+
 @app.post("/evaluate-answer")
 async def evaluate_answer(req: AnswerRequest):
     return await evaluate_text(req.text)
@@ -56,17 +60,16 @@ async def evaluate_answer(req: AnswerRequest):
 
 @app.post("/rank-candidates")
 async def rank_candidates(req: RankRequest):
-    ranked = []
+    results = []
 
     for ans in req.answers:
-        result = await evaluate_text(ans)
-        ranked.append({
+        evaluated = await evaluate_text(ans)
+        results.append({
             "answer": ans,
-            "score": result["score"],
-            "summary": result["summary"],
-            "improvement": result["improvement"]
+            "score": evaluated["score"],
+            "summary": evaluated["summary"],
+            "improvement": evaluated["improvement"]
         })
 
-    ranked.sort(key=lambda x: x["score"], reverse=True)
-
-    return {"ranked": ranked}
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return {"ranked": results}
