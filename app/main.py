@@ -4,37 +4,49 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
 import json
+import re
 
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-app = FastAPI(title="Mini AI Interview Screener", version="1.0")
+app = FastAPI(title="Mini AI Interview Screener", version="0.2.0")
 
 
-# ===== MODELS =====
+# MODELS
 class AnswerRequest(BaseModel):
     text: str
-
 
 class RankRequest(BaseModel):
     answers: list[str]
 
 
-# ===== HELPER FUNCTION =====
+# Clean JSON helper (handles cases where model adds extra text)
+def extract_json(text: str):
+    try:
+        json_str = re.search(r"\{.*\}", text, re.DOTALL)
+        if not json_str:
+            raise Exception("No JSON found in response")
+        return json.loads(json_str.group())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Invalid JSON from LLM: {e}")
+
+
+# Evaluate helper
 async def evaluate_text(text: str):
     prompt = f"""
-You are an interview evaluator. Analyze the candidate’s answer.
+Return ONLY a JSON object. No markdown, no explanation.
 
-Answer: {text}
+Evaluate the following interview answer:
 
-Return ONLY a valid JSON object:
+Answer: "{text}"
+
+Respond exactly in this JSON format:
 {{
   "score": 1-5,
-  "summary": "one line summary",
-  "improvement": "one improvement advice"
+  "summary": "short summary",
+  "improvement": "one improvement"
 }}
-Make sure the response is STRICT JSON.
 """
 
     try:
@@ -45,14 +57,13 @@ Make sure the response is STRICT JSON.
         )
 
         raw = response.choices[0].message.content
-        return json.loads(raw)
+        return extract_json(raw)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM error: {e}")
 
 
-# ===== ROUTES =====
-
+# ROUTES
 @app.post("/evaluate-answer")
 async def evaluate_answer(req: AnswerRequest):
     return await evaluate_text(req.text)
@@ -63,13 +74,14 @@ async def rank_candidates(req: RankRequest):
     results = []
 
     for ans in req.answers:
-        evaluated = await evaluate_text(ans)
+        eval_data = await evaluate_text(ans)
         results.append({
             "answer": ans,
-            "score": evaluated["score"],
-            "summary": evaluated["summary"],
-            "improvement": evaluated["improvement"]
+            "score": eval_data["score"],
+            "summary": eval_data["summary"],
+            "improvement": eval_data["improvement"]
         })
 
     results.sort(key=lambda x: x["score"], reverse=True)
+
     return {"ranked": results}
