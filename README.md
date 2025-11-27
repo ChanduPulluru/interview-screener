@@ -172,12 +172,9 @@ Ability to build fast & ship quickly
 FastAPI + Groq provides the perfect balance of speed, clarity, cost-efficiency, and production readiness.
 
 📂 Project Structure
-.
+
 ├── app
 │   ├── main.py          # FastAPI app + API routes
-│   ├── evaluator.py     # Groq LLM logic
-│   ├── models.py        # Pydantic request/response models
-│
 ├── start.sh             # Render startup script
 ├── requirements.txt
 └── README.md
