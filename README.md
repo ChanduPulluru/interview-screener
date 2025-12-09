@@ -273,7 +273,7 @@ Output:
 
 📽 Loom Walkthrough (2–3 Minutes)
 Link: 
-
+https://drive.google.com/file/d/1CeVgiope2sOQyDR4UtVIF_b2bQK_PA7Y/view?usp=drivesdk
 Git Repo link:
 https://github.com/ChanduPulluru/interview-screener
 
